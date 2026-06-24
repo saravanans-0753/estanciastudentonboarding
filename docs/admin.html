@@ -120,8 +120,9 @@
 
     /* student photo capture (center pane) — single media frame, one state at a time */
     .photo { margin-top: 18px; padding-top: 16px; border-top: 1px solid #eef1f7; }
-    .photo-stage { position: relative; width: 100%; max-width: 300px; aspect-ratio: 4 / 3; border-radius: 12px;
-                   overflow: hidden; background: var(--grey); border: 1px solid var(--line); box-shadow: var(--sh-sm); }
+    .photo-row { display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .photo-stage { position: relative; flex: 0 1 280px; width: 280px; max-width: 100%; aspect-ratio: 4 / 3;
+                   border-radius: 12px; overflow: hidden; background: var(--grey); border: 1px solid var(--line); box-shadow: var(--sh-sm); }
     .cam-placeholder { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
                        justify-content: center; gap: 7px; color: var(--muted); cursor: pointer; background: transparent;
                        border: 2px dashed var(--line); border-radius: 12px;
@@ -137,17 +138,18 @@
                border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 19px; line-height: 1; cursor: pointer;
                display: flex; align-items: center; justify-content: center; box-shadow: var(--sh-md); transition: background .15s; }
     .photo-x:hover { background: var(--err); }
-    .photo-note { font-size: 12px; color: var(--muted); margin-top: 9px; line-height: 1.45; max-width: 300px; }
-    .photo-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; max-width: 320px; }
-    .pbtn { padding: 8px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface);
-            color: var(--pri); font-weight: 600; cursor: pointer; font-size: 13px; display: inline-flex;
-            align-items: center; gap: 5px; transition: border-color .12s, background .12s; }
-    .pbtn:hover { border-color: var(--accent); background: #f1fbfd; }
-    .pbtn:disabled { opacity: .45; cursor: default; border-color: var(--line); background: var(--surface); }
-    .pbtn.primary { background: linear-gradient(180deg, var(--accent), var(--acc-d)); color: var(--pri-d); border-color: transparent; }
-    .savebtn { margin-top: 12px; width: 100%; max-width: 300px; padding: 12px; border: none; border-radius: 10px;
-               background: var(--ok); color: #fff; font-weight: 700; cursor: pointer; font-size: 14px; box-shadow: var(--sh-sm); }
-    .savebtn:disabled { background: #9aa0a6; cursor: default; box-shadow: none; }
+    .photo-note { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.45; max-width: 360px; }
+    /* vertical icon toolbar beside the frame */
+    .photo-tools { display: flex; flex-direction: column; gap: 8px; flex: 0 0 auto; }
+    .iconbtn { width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
+               color: var(--pri); font-size: 18px; line-height: 1; cursor: pointer; display: flex; align-items: center;
+               justify-content: center; transition: border-color .12s, background .12s, transform .05s; }
+    .iconbtn:hover { border-color: var(--accent); background: #f1fbfd; }
+    .iconbtn:active { transform: translateY(1px); }
+    .iconbtn:disabled { opacity: .4; cursor: default; background: var(--surface); border-color: var(--line); transform: none; }
+    .iconbtn.primary { background: linear-gradient(180deg, var(--accent), var(--acc-d)); color: var(--pri-d); border-color: transparent; }
+    .iconbtn.save { background: var(--ok); color: #fff; border-color: transparent; }
+    .iconbtn.save:disabled { background: #9aa0a6; color: #fff; opacity: .7; }
 
     /* passport-crop + color-correction photo editor */
     .peditor { position: fixed; inset: 0; background: rgba(0,0,0,.82); z-index: 80; display: none;
@@ -226,9 +228,9 @@
                             60%{transform:translate(calc(-50% + 7px),0)} 80%{transform:translate(calc(-50% - 4px),0)} }
 
     /* button hover polish */
-    .pane-head button.mini:hover, .zoomctl button:hover, .photo-actions button:hover,
+    .pane-head button.mini:hover, .zoomctl button:hover,
     .assign-row button:hover, .flatedit button:hover { filter: brightness(.96); }
-    .savebtn:not(:disabled):hover { filter: brightness(1.06); }
+    .iconbtn.save:not(:disabled):hover { filter: brightness(1.06); }
     .thumb { box-shadow: var(--sh-sm); }
     .flatedit button:hover { background: var(--pri-d); }
     .assign-row button:hover { background: var(--pri-d); }
@@ -260,10 +262,11 @@
     body.theme-dark .cam-placeholder { background: transparent; }
     body.theme-dark .cam-placeholder:hover { background: rgba(73,198,221,.10); color: var(--accent); }
     body.theme-dark .photo-note { color: #9fb1c0; }
-    body.theme-dark .pbtn { background: #1b2733; color: var(--accent); border-color: var(--line); }
-    body.theme-dark .pbtn:hover { background: #25394a; }
-    body.theme-dark .pbtn.primary { color: var(--pri-d); }
-    body.theme-dark .pbtn:disabled { background: #1b2733; }
+    body.theme-dark .iconbtn { background: #1b2733; color: var(--accent); border-color: var(--line); }
+    body.theme-dark .iconbtn:hover { background: #25394a; }
+    body.theme-dark .iconbtn.primary { color: var(--pri-d); }
+    body.theme-dark .iconbtn.save { color: #fff; }
+    body.theme-dark .iconbtn:disabled { background: #1b2733; }
     body.theme-dark .ghostbtn { background: #1b2733; color: var(--accent); }
     body.theme-dark .thumb .dl { background: #1b2733; color: var(--accent); border-top-color: var(--line); }
     body.theme-dark .thumb .dl:hover { background: #25394a; }
@@ -345,30 +348,31 @@
 
         <div class="photo" id="photoSection" style="display:none">
           <div class="docgroup">Student photo</div>
-          <div class="photo-stage" id="photoStage">
-            <div id="camPlaceholder" class="cam-placeholder" onclick="startCam()">
-              <div class="ph-icon">📷</div>
-              <div class="ph-text">Click to take a photo</div>
-              <div class="ph-sub">or use Upload below</div>
+          <div class="photo-row">
+            <div class="photo-stage" id="photoStage">
+              <div id="camPlaceholder" class="cam-placeholder" onclick="startCam()">
+                <div class="ph-icon">📷</div>
+                <div class="ph-text">Take / upload photo</div>
+              </div>
+              <video id="camVideo" class="cam" autoplay playsinline muted></video>
+              <div id="photoWrap" class="photo-wrap">
+                <img id="photoPreview" class="camshot" alt="student photo">
+                <button class="photo-x" onclick="removePhoto()" title="Remove photo">&times;</button>
+              </div>
             </div>
-            <video id="camVideo" class="cam" autoplay playsinline muted></video>
-            <div id="photoWrap" class="photo-wrap">
-              <img id="photoPreview" class="camshot" alt="student photo">
-              <button class="photo-x" onclick="removePhoto()" title="Remove photo">&times;</button>
+            <div class="photo-tools">
+              <button id="captureBtn" class="iconbtn primary" onclick="capturePhoto()" title="Capture photo" style="display:none">📸</button>
+              <button id="cancelCamBtn" class="iconbtn" onclick="cancelCam()" title="Cancel" style="display:none">✕</button>
+              <button id="uploadBtn" class="iconbtn" onclick="document.getElementById('photoFile').click()" title="Upload image">⬆</button>
+              <button id="editPhotoBtn" class="iconbtn" onclick="openPhotoEditor()" title="Crop / colour" disabled>✂</button>
+              <button id="dlPhotoBtn" class="iconbtn" onclick="downloadPhoto()" title="Download" disabled>⬇</button>
+              <button id="savePhotoBtn" class="iconbtn save" onclick="savePhoto()" title="Save photo" disabled>✓</button>
+              <input type="file" id="photoFile" accept="image/*" onchange="onPhotoFile(this)">
+              <input type="file" id="photoCapture" accept="image/*" capture="user" onchange="onPhotoFile(this)">
             </div>
           </div>
           <div id="photoExisting" class="photo-note"></div>
-          <div class="photo-actions">
-            <button id="captureBtn" class="pbtn primary" onclick="capturePhoto()" style="display:none">📸 Capture</button>
-            <button id="cancelCamBtn" class="pbtn" onclick="cancelCam()" style="display:none">Cancel</button>
-            <button id="uploadBtn" class="pbtn" onclick="document.getElementById('photoFile').click()">⬆ Upload</button>
-            <button id="editPhotoBtn" class="pbtn" onclick="openPhotoEditor()" disabled>✂ Crop / Color</button>
-            <button id="dlPhotoBtn" class="pbtn" onclick="downloadPhoto()" disabled>⬇ Download</button>
-            <input type="file" id="photoFile" accept="image/*" onchange="onPhotoFile(this)">
-            <input type="file" id="photoCapture" accept="image/*" capture="user" onchange="onPhotoFile(this)">
-          </div>
-          <button class="savebtn" id="savePhotoBtn" onclick="savePhoto()" disabled>Save photo</button>
-          <div id="photoStatus" class="hint" style="margin-top:8px"></div>
+          <div id="photoStatus" class="hint" style="margin-top:6px"></div>
         </div>
 
         <div class="assignid" id="assignSection" style="display:none">
@@ -983,6 +987,7 @@
       document.getElementById('uploadBtn').style.display = live ? 'none' : '';
       document.getElementById('editPhotoBtn').style.display = live ? 'none' : '';
       document.getElementById('dlPhotoBtn').style.display = live ? 'none' : '';
+      document.getElementById('savePhotoBtn').style.display = live ? 'none' : '';
     }
     function cancelCam() { renderPhoto(); }   // stop the live feed, revert to the on-file photo / empty state
 
