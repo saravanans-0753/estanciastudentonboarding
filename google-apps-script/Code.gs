@@ -1062,6 +1062,10 @@ function generateAnnexurePdf(flat) {
   }
   replaceTokenWithImage_(body, '{{owner_sig}}', flatInfo.OwnerSignatureUrl, 150, 50);
 
+  // Final sweep: clear any {{token}} that had no value or wasn't mapped, so no raw
+  // placeholders ever appear in the PDF. (Runs after all text/image replacements.)
+  body.replaceText('\\{\\{[^{}]*\\}\\}', '');
+
   doc.saveAndClose();
 
   const pdfBlob = DriveApp.getFileById(copy.getId())
