@@ -294,6 +294,7 @@
     <input id="flat" inputmode="numeric" placeholder="Flat #">
     <button onclick="loadFlat()">Load</button>
     <button id="genPdfBtn" onclick="genPdf()" style="display:none">Annexure 2A PDF</button>
+    <button id="csvBtn" onclick="copyCsv()" style="display:none">Copy CSV</button>
     <span class="muted" id="who"></span>
     <span class="spacer"></span>
   </div>
@@ -872,6 +873,51 @@
         });
     }
 
+    // Build a CSV of the loaded flat's students and copy it to the clipboard.
+    // Columns map to the sheet fields; one row per student.
+    var CSV_COLS = [
+      ['Flat', 'HouseId'], ['Assigned ID', 'AssignedId'], ['Student ID', 'StudentId'],
+      ['Name', 'Name'], ['Aadhaar', 'AadharNumber'], ['Mobile', 'Phone'], ['Email', 'Email'],
+      ['Sex', 'Sex'], ['Parent/Guardian', 'ParentName'], ['Parent mobile', 'ParentMobile'],
+      ['Residential address', 'Address'], ['College/Company ID', 'CollegeStudentId'],
+      ['College/Company', 'CollegeName'], ['Course', 'CourseName'], ['Year', 'AcademicYear'],
+      ['ID valid upto', 'IdValidUpto'], ['Status', 'Status']
+    ];
+    function csvCell(v) {
+      v = (v == null) ? '' : String(v);
+      return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }
+    function copyCsv() {
+      if (!students.length) return setStatus('Load a flat first.', false);
+      var flat = document.getElementById('flat').value.trim();
+      var rows = [CSV_COLS.map(function (c) { return csvCell(c[0]); }).join(',')];
+      students.forEach(function (s) {
+        rows.push(CSV_COLS.map(function (c) {
+          return csvCell(c[1] === 'HouseId' ? (s.HouseId || flat) : s[c[1]]);
+        }).join(','));
+      });
+      var csv = rows.join('\r\n');
+      copyText(csv)
+        .then(function () { setStatus(students.length + ' student row(s) copied as CSV.', true); })
+        .catch(function () { setStatus('Could not access clipboard — see the browser prompt.', false); });
+    }
+    // Clipboard write with a textarea/execCommand fallback for restricted contexts.
+    function copyText(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+      }
+      return new Promise(function (resolve, reject) {
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          var ok = document.execCommand('copy');
+          ta.remove();
+          ok ? resolve() : reject(new Error('copy failed'));
+        } catch (e) { reject(e); }
+      });
+    }
+
     // ---------- load flat ----------
     function loadFlat() {
       if (!serverReady()) {
@@ -893,6 +939,7 @@
             document.getElementById('who').textContent = 'Flat ' + flat + ' · ' + students.length + ' student(s)';
             document.getElementById('centerHint').textContent = students.length ? '' : '(none submitted)';
             document.getElementById('genPdfBtn').style.display = students.length ? '' : 'none';
+            document.getElementById('csvBtn').style.display = students.length ? '' : 'none';
             renderTabs();
             if (students.length) switchTab(0);
             else {
