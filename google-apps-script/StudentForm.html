@@ -58,7 +58,8 @@
     .ok { color:var(--ok); } .err { color:var(--err); }
     .done { background:#fff; border:1px solid var(--line); border-radius:12px; padding:24px; text-align:center; }
     .done .big { font-size:42px; }
-    input[type=file] { display:none; }
+    /* visually hidden but still rendered — so .click() opens the picker on mobile Safari too */
+    input[type=file] { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); border:0; opacity:0; }
   </style>
 </head>
 <body>
