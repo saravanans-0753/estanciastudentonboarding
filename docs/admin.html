@@ -875,26 +875,34 @@
 
     // Build a CSV of the loaded flat's students and copy it to the clipboard.
     // Columns map to the sheet fields; one row per student.
-    var CSV_COLS = [
-      ['Flat', 'HouseId'], ['Assigned ID', 'AssignedId'], ['Student ID', 'StudentId'],
-      ['Name', 'Name'], ['Aadhaar', 'AadharNumber'], ['Mobile', 'Phone'], ['Email', 'Email'],
-      ['Sex', 'Sex'], ['Parent/Guardian', 'ParentName'], ['Parent mobile', 'ParentMobile'],
-      ['Residential address', 'Address'], ['College/Company ID', 'CollegeStudentId'],
-      ['College/Company', 'CollegeName'], ['Course', 'CourseName'], ['Year', 'AcademicYear'],
-      ['ID valid upto', 'IdValidUpto'], ['Status', 'Status']
-    ];
+    // Columns: Name, Flat, ValidFrom, ValidTill, Aadhar, Mobile, ID, Update
+    var CSV_HEADER = ['Name', 'Flat', 'ValidFrom', 'ValidTill', 'Aadhar', 'Mobile', 'ID', 'Update'];
     function csvCell(v) {
       v = (v == null) ? '' : String(v);
       return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     }
+    // Keep only the last 4 digits visible; mask the rest with 'X' (e.g. 12345 → XXXXX...6789).
+    function maskTail(v) {
+      var d = String(v == null ? '' : v).replace(/\D/g, '');
+      if (d.length <= 4) return d;
+      return new Array(d.length - 4 + 1).join('X') + d.slice(-4);
+    }
     function copyCsv() {
       if (!students.length) return setStatus('Load a flat first.', false);
       var flat = document.getElementById('flat').value.trim();
-      var rows = [CSV_COLS.map(function (c) { return csvCell(c[0]); }).join(',')];
+      var validFrom = document.getElementById('fAgreementDate').value.trim();   // flat agreement date
+      var rows = [CSV_HEADER.map(csvCell).join(',')];
       students.forEach(function (s) {
-        rows.push(CSV_COLS.map(function (c) {
-          return csvCell(c[1] === 'HouseId' ? (s.HouseId || flat) : s[c[1]]);
-        }).join(','));
+        rows.push([
+          s.Name || '',
+          s.HouseId || flat,
+          validFrom,
+          s.IdValidUpto || '',           // ValidTill
+          maskTail(s.AadharNumber),
+          maskTail(s.Phone),
+          s.AssignedId || '',            // ID = assigned student id
+          'N'                            // Update — always N
+        ].map(csvCell).join(','));
       });
       var csv = rows.join('\r\n');
       copyText(csv)
