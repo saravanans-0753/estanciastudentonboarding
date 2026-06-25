@@ -905,8 +905,8 @@
       // 31-Jul-2026 / 31 July 2026 / 31/Jul/2026
       m = v.match(/^(\d{1,2})[\s\-\/.]+([A-Za-z]{3,})[\s\-\/.]+(\d{2,4})$/);
       if (m && MON3[m[2].slice(0, 3).toLowerCase()] != null) { var y = +m[3]; if (y < 100) y += 2000; return mkDate(y, MON3[m[2].slice(0, 3).toLowerCase()], +m[1]); }
-      // 2026-07-31 (ISO)
-      m = v.match(/^(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})$/);
+      // 2026-07-31  or  2026-07-31 00:00:00  or  2026-07-31T10:00 (ISO date, optional time)
+      m = v.match(/^(\d{4})[\-\/.](\d{1,2})[\-\/.](\d{1,2})(?:[ T].*)?$/);
       if (m) return mkDate(+m[1], +m[2] - 1, +m[3]);
       // 31-07-2026 / 31/07/2026 (day-first numeric)
       m = v.match(/^(\d{1,2})[\-\/.](\d{1,2})[\-\/.](\d{2,4})$/);
