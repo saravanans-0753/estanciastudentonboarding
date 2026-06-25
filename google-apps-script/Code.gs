@@ -1049,7 +1049,7 @@ function generateAnnexurePdf(flat) {
   for (let n = 1; n <= MAX_STUDENTS_PER_HOUSE; n++) {
     const s = students[n - 1] || {};
     const tag = '{{s' + n + '_';
-    replaceTokenWithImage_(body, tag + 'photo}}', s.PhotoUrl, 90, 110);
+    replaceTokenWithImage_(body, tag + 'photo}}', s.PhotoUrl, 90, 110, true);   // fit width to cell, keep height
     replaceTokenWithImage_(body, tag + 'sig}}', s.SignatureUrl, 120, 45);
     // Aadhaar + College/Company ID scans (front = ..1, back = ..2). Each may hold
     // several files joined by " , "; we insert the first two. Missing ones clear blank.
@@ -1077,7 +1077,7 @@ function generateAnnexurePdf(flat) {
 // with a Drive image. Leaves the cell empty if the image is missing so the layout
 // still holds. (Handles the same token appearing in both the page-3 signature grid
 // and the page-5 detail block.)
-function replaceTokenWithImage_(body, token, fileUrlOrId, width, height) {
+function replaceTokenWithImage_(body, token, fileUrlOrId, width, height, widthOnly) {
   const pattern = escapeRegex_(token);
   const blob = driveBlobFromUrl_(fileUrlOrId);
 
@@ -1097,7 +1097,7 @@ function replaceTokenWithImage_(body, token, fileUrlOrId, width, height) {
       } else if (parent.getType() === DocumentApp.ElementType.LIST_ITEM) {
         img = parent.asListItem().appendInlineImage(blob);
       }
-      if (img) sizeImageToCell_(img, el, width, height);
+      if (img) sizeImageToCell_(img, el, width, height, widthOnly);
     }
     found = body.findText(pattern);
   }
@@ -1116,17 +1116,23 @@ function cellOf_(el) {
 // Sizes an inserted image to fit its table cell's width (keeping the image's aspect
 // ratio). Falls back to the given fixed width/height when it's not inside a cell or the
 // cell width can't be read.
-function sizeImageToCell_(img, el, fallbackW, fallbackH) {
+//   widthOnly === true → set ONLY the width to the cell width; leave the height as the
+//   image was inserted (height not touched).
+function sizeImageToCell_(img, el, fallbackW, fallbackH, widthOnly) {
   let w = fallbackW, h = fallbackH;
   const cell = cellOf_(el);
   if (cell) {
     let cw = 0;
     try { cw = cell.getWidth(); } catch (e) { cw = 0; }
     const iw = img.getWidth(), ih = img.getHeight();
-    if (cw && iw && ih) {
-      w = Math.max(24, cw - 8);          // leave a little padding inside the cell
-      h = Math.round(w * (ih / iw));     // preserve aspect ratio
+    if (cw) {
+      w = Math.max(24, cw - 8);                            // leave a little padding inside the cell
+      if (iw && ih) h = Math.round(w * (ih / iw));         // preserve aspect ratio
     }
+  }
+  if (widthOnly) {
+    if (w) img.setWidth(w);                                // fit to cell width; don't touch height
+    return;
   }
   if (w && h) { img.setWidth(w); img.setHeight(h); }
 }
