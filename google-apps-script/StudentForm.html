@@ -10,7 +10,7 @@
     body { font-family: -apple-system, Roboto, Arial, sans-serif; margin:0; background:var(--bg); color:#202124; }
     .wrap { max-width:560px; margin:0 auto; padding:16px; }
     .brand { display:flex; align-items:center; gap:12px; margin:8px 0 16px; }
-    .brand-logo { height:46px; width:auto; border-radius:8px; display:none; }
+    .brand-logo { height:46px; width:auto; border-radius:8px; display:block; }
     h1 { font-size:20px; margin:0; }
     .sub { color:#5f6368; font-size:13px; margin-top:2px; }
 
@@ -63,7 +63,7 @@
 <body>
   <div class="wrap">
     <div class="brand">
-      <img id="brandLogo" class="brand-logo" alt="Estancia">
+      <img id="brandLogo" class="brand-logo" alt="Estancia" src="https://raw.githubusercontent.com/estanciafoa/estancia_student_onboarding/main/estancialogo.jpg">
       <div>
         <h1>Resident Onboarding Form</h1>
         <div class="sub">Estancia Annexure 2A — please fill your details accurately.</div>
@@ -188,7 +188,6 @@
     var visited = {}; // steps the user has opened — a tick shows only after a step is visited
 
     document.addEventListener('DOMContentLoaded', function () {
-      loadLogo();
       if (INIT_FLAT) document.getElementById('flat').value = INIT_FLAT;
       buildPills();
       // Mark a box as active when tapped, so a following paste lands in it.
