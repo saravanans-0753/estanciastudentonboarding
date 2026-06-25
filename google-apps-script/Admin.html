@@ -613,14 +613,17 @@
     }
 
     // Click-and-drag to scroll/pan a scrollable element (useful when zoomed in).
+    // Panning is OFF until content is loaded — see setPannable() — so an empty pane's
+    // controls (e.g. the "Upload agreement" label) aren't swallowed by the drag handler.
     // A real drag (moved > 4px) suppresses the click so it won't trigger the lightbox.
     function makePannable(el) {
       var down = false, moved = false, sx, sy, sl, st;
-      el.style.cursor = 'grab';
+      el.__panOn = false;
       el.addEventListener('pointerdown', function (e) {
+        if (!el.__panOn) return;                    // disabled until content is loaded
         if (e.button && e.button !== 0) return;     // left button / touch only
         if (e.shiftKey) return;                     // shift-drag = snip & magnify, not pan
-        if (e.target.closest && e.target.closest('button, label, a, input, select')) return; // let controls (Download, Upload label, links) work
+        if (e.target.closest && e.target.closest('button, label, a, input, select')) return; // let controls work
         down = true; moved = false;
         sx = e.clientX; sy = e.clientY; sl = el.scrollLeft; st = el.scrollTop;
         try { el.setPointerCapture(e.pointerId); } catch (_) {}
@@ -635,18 +638,23 @@
       });
       function end(e) {
         if (!down) return;
-        down = false; el.style.cursor = 'grab';
+        down = false; el.style.cursor = el.__panOn ? 'grab' : '';
         try { el.releasePointerCapture(e.pointerId); } catch (_) {}
       }
       el.addEventListener('pointerup', end);
       el.addEventListener('pointercancel', end);
-      // Stop the browser's native image-drag from hijacking the pointer (images don't
-      // pan otherwise — only the canvas-based PDF pane did).
-      el.addEventListener('dragstart', function (e) { e.preventDefault(); });
+      // Stop the browser's native image-drag from hijacking the pointer (only while panning).
+      el.addEventListener('dragstart', function (e) { if (el.__panOn) e.preventDefault(); });
       // Swallow the click that follows a drag so it doesn't open the lightbox.
       el.addEventListener('click', function (e) {
         if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; }
       }, true);
+    }
+    // Enable/disable drag-panning on a pane (called when its content loads / clears).
+    function setPannable(el, on) {
+      if (!el) return;
+      el.__panOn = !!on;
+      el.style.cursor = on ? 'grab' : '';
     }
 
     // Draggable gutters: left & right panes get pixel widths, center keeps the rest (1fr).
@@ -1341,9 +1349,10 @@
     function renderDocs() {
       var s = students[activeTab];
       var body = document.getElementById('docBody');
-      if (!s) { body.innerHTML = '<div class="empty">—</div>'; return; }
+      if (!s) { body.innerHTML = '<div class="empty">—</div>'; setPannable(body, false); return; }
       if (s._docs) { paintDocs(s._docs); return; }
       body.innerHTML = '<div class="empty">Loading documents…</div>';
+      setPannable(body, false);
       callServer('getCompareDocs', { studentId: s.StudentId })
         .then(function (d) { s._docs = d || {}; if (students[activeTab] === s) paintDocs(s._docs); })
         .catch(function (e) { body.innerHTML = '<div class="err" style="padding:12px">' + esc(e && e.message ? e.message : 'Failed to load documents.') + '</div>'; });
@@ -1358,6 +1367,7 @@
       html += imagesHtml(d.college, 'No College/Company ID image on file.', 'collegeid');
       body.innerHTML = html || '<div class="empty">No documents.</div>';
       applyPaneZoom('R');
+      setPannable(body, !!((d.aadhar && d.aadhar.length) || (d.college && d.college.length)));
       renderPhoto();   // docs now include the photo bytes → refresh the photo section
     }
 
@@ -1377,10 +1387,11 @@
     function loadAgreement(flat) {
       var body = document.getElementById('agreeBody');
       body.innerHTML = '<div class="empty">Loading agreement…</div>';
+      setPannable(body, false);
       agreementPdfDoc = null;
       callServer('getFlatAgreementDoc', { flat: flat })
         .then(function (ag) { renderAgreement(ag); })
-        .catch(function (e) { body.innerHTML = '<div class="err" style="padding:12px">' + esc(e && e.message ? e.message : 'Failed to load agreement.') + '</div>'; });
+        .catch(function (e) { setPannable(body, false); body.innerHTML = '<div class="err" style="padding:12px">' + esc(e && e.message ? e.message : 'Failed to load agreement.') + '</div>'; });
     }
 
     function renderAgreement(ag) {
@@ -1388,6 +1399,7 @@
       var hint = document.getElementById('agreeHint');
       if (!ag || (!ag.base64 && !ag.url)) {
         hint.textContent = 'not uploaded';
+        setPannable(body, false);
         body.innerHTML = '<div class="uploadprompt">No agreement uploaded for this flat.' +
           '<br><label class="btn" for="agreeFile">Upload agreement</label></div>';
         return;
@@ -1398,11 +1410,13 @@
         var src = 'data:' + (ag.mime || 'image/jpeg') + ';base64,' + ag.base64;
         body.innerHTML = '<div class="thumb"><img src="' + src + '"></div>';
         applyPaneZoom('L');
+        setPannable(body, true);
         return;
       }
       // PDF → render each page as a (readable) thumbnail; click to zoom.
       if (!window.pdfjsLib || !ag.base64) {
         hint.textContent = 'PDF';
+        setPannable(body, false);
         body.innerHTML = '<div class="uploadprompt">Agreement is a PDF. <a href="' + ag.url + '" target="_blank">Open it</a></div>';
         return;
       }
@@ -1412,6 +1426,7 @@
       pdfjsLib.getDocument({ data: bytes }).promise.then(function (pdf) {
         agreementPdfDoc = pdf;
         body.innerHTML = '';
+        setPannable(body, true);
         var chain = Promise.resolve();
         for (var p = 1; p <= pdf.numPages; p++) {
           (function (pageNum) {
@@ -1434,6 +1449,7 @@
           })(p);
         }
       }).catch(function () {
+        setPannable(body, false);
         body.innerHTML = '<div class="uploadprompt">Could not render the PDF. <a href="' + ag.url + '" target="_blank">Open it</a></div>';
       });
     }
