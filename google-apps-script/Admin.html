@@ -876,11 +876,9 @@
     // Build a CSV of the loaded flat's students and copy it to the clipboard.
     // Columns map to the sheet fields; one row per student.
     // Columns: Name, Flat, ValidFrom, ValidTill, Aadhar, Mobile, ID, Update
+    // Tab-separated so it pastes straight into spreadsheet columns.
     var CSV_HEADER = ['Name', 'Flat', 'ValidFrom', 'ValidTill', 'Aadhar', 'Mobile', 'ID', 'Update'];
-    function csvCell(v) {
-      v = (v == null) ? '' : String(v);
-      return /[",\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
-    }
+    function tsvCell(v) { return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' ').trim(); }
     // Keep only the last 4 digits visible; mask the rest with 'X' (e.g. 12345 → XXXXX...6789).
     function maskTail(v) {
       var d = String(v == null ? '' : v).replace(/\D/g, '');
@@ -891,7 +889,7 @@
       if (!students.length) return setStatus('Load a flat first.', false);
       var flat = document.getElementById('flat').value.trim();
       var validFrom = document.getElementById('fAgreementDate').value.trim();   // flat agreement date
-      var rows = [CSV_HEADER.map(csvCell).join(',')];
+      var rows = [CSV_HEADER.join('\t')];
       students.forEach(function (s) {
         rows.push([
           s.Name || '',
@@ -902,11 +900,11 @@
           maskTail(s.Phone),
           s.AssignedId || '',            // ID = assigned student id
           'N'                            // Update — always N
-        ].map(csvCell).join(','));
+        ].map(tsvCell).join('\t'));
       });
       var csv = rows.join('\r\n');
       copyText(csv)
-        .then(function () { setStatus(students.length + ' student row(s) copied as CSV.', true); })
+        .then(function () { setStatus(students.length + ' student row(s) copied — paste into a sheet.', true); })
         .catch(function () { setStatus('Could not access clipboard — see the browser prompt.', false); });
     }
     // Clipboard write with a textarea/execCommand fallback for restricted contexts.
