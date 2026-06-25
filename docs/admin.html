@@ -260,6 +260,19 @@
     .approvebtn:hover:not(:disabled) { filter: brightness(1.05); }
     .approvebtn:disabled { background: #9aa0a6; cursor: default; filter: none; }
 
+    /* pinnable side panes — explicit columns so a floated (out-of-flow) pane keeps the
+       remaining panes in their tracks; floated panes become draggable/resizable windows */
+    .pane.left { grid-column: 1; }
+    #gutterL { grid-column: 2; }
+    .pane.center { grid-column: 3; }
+    #gutterR { grid-column: 4; }
+    .pane.right { grid-column: 5; }
+    .pane.floating { position: fixed; z-index: 40; background: var(--surface); border: 1px solid var(--line);
+                     border-radius: 12px; box-shadow: var(--sh-lg); overflow: hidden; resize: both;
+                     min-width: 240px; min-height: 180px; }
+    .pane.floating .pane-head { cursor: move; }
+    .pinbtn.floaton { background: var(--accent); color: var(--pri-d); border-color: transparent; }
+
     /* ---------- dark theme ---------- */
     body.theme-dark {
       --pri:#0a6e93; --pri-d:#0b5d7c; --accent:#49C6DD; --acc-d:#37b6cf;
@@ -302,7 +315,12 @@
     body.theme-dark .empty { color: #7f93a3; }
     body.theme-dark .edit-head { color: #9fb1c0; }
 
-    @media (max-width: 900px) { .work { grid-template-columns: 1fr !important; } .gutter { display: none; } }
+    @media (max-width: 900px) {
+      .work { grid-template-columns: 1fr !important; }
+      .gutter { display: none; }
+      .pane { grid-column: auto !important; }
+      .pane.floating { position: static; resize: none; box-shadow: none; width: auto !important; height: auto !important; }
+    }
   </style>
 </head>
 <body>
@@ -336,6 +354,7 @@
             <button onclick="zoomPane('L',1)" title="Zoom in">+</button>
           </span>
           <label class="mini" for="agreeFile">Upload / Replace</label>
+          <button class="mini pinbtn" id="pinL" onclick="toggleDock('L')" title="Pin / float this panel">📌</button>
         </span>
         <input type="file" id="agreeFile" accept="application/pdf,image/*" onchange="onAgreeFile()">
       </div>
@@ -429,6 +448,7 @@
             <button onclick="zoomPane('R',0)" title="Fit">Fit</button>
             <button onclick="zoomPane('R',1)" title="Zoom in">+</button>
           </span>
+          <button class="mini pinbtn" id="pinR" onclick="toggleDock('R')" title="Pin / float this panel">📌</button>
         </span>
       </div>
       <div class="pane-body" id="docBody"><div class="empty">Pick a student to see their documents.</div></div>
@@ -506,6 +526,9 @@
     var PASSPORT_ASPECT = 35 / 45;               // width:height of a 35×45 mm passport photo
     var PHOTO_FILTER = 'brightness(1.06) contrast(1.10) saturate(1.12)';   // predefined color correction
     var peImg = null, peScale = 1, peCrop = null;
+    var dock = { L: true, R: true };          // side pane pinned (docked) vs floating
+    var floatGeo = { L: null, R: null };      // saved floating geometry per side
+    var _floatSaveTimer = null;
 
     document.addEventListener('DOMContentLoaded', function () {
       applyTheme(getSavedTheme());
@@ -520,6 +543,10 @@
       document.getElementById('flat').addEventListener('keydown', function (e) { if (e.key === 'Enter') loadFlat(); });
       setupResizers();
       restoreLayout();
+      loadDock();
+      applyDock();
+      setupFloatDrag('L'); setupFloatDrag('R');
+      observeFloatResize();
       makePannable(document.getElementById('agreeBody'));
       makePannable(document.getElementById('docBody'));
       document.getElementById('agreeBody').addEventListener('dblclick', function (e) { zoomAtPoint('L', e); });
@@ -708,6 +735,99 @@
       } catch (_) {}
     }
     function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    // ---------- pinnable panes (Agreement = L, Aadhaar & ID = R) ----------
+    // Pinned = docked into the grid. Floating = a draggable, resizable window. State &
+    // geometry persist per browser. Explicit grid-columns (CSS) keep the remaining panes
+    // in place when one is taken out of flow.
+    function loadDock() {
+      try { var d = JSON.parse(localStorage.getItem('adminDock') || 'null'); if (d) { dock.L = d.L !== false; dock.R = d.R !== false; } } catch (_) {}
+      try { floatGeo = JSON.parse(localStorage.getItem('adminFloat') || 'null') || { L: null, R: null }; } catch (_) { floatGeo = { L: null, R: null }; }
+    }
+    function saveDock() { try { localStorage.setItem('adminDock', JSON.stringify(dock)); } catch (_) {} }
+    function saveFloat() { try { localStorage.setItem('adminFloat', JSON.stringify(floatGeo)); } catch (_) {} }
+    function saveFloatSoon() { if (_floatSaveTimer) clearTimeout(_floatSaveTimer); _floatSaveTimer = setTimeout(saveFloat, 300); }
+    function paneEl(side) { return document.querySelector(side === 'L' ? '.pane.left' : '.pane.right'); }
+    function defaultGeo(side) {
+      var vw = window.innerWidth, vh = window.innerHeight;
+      var w = Math.min(440, Math.round(vw * 0.42)), h = Math.round(vh * 0.7);
+      return { l: side === 'L' ? 40 : Math.max(40, vw - w - 40), t: 104, w: w, h: h };
+    }
+    function trackFor(side, saved) {
+      if (!dock[side]) return '0px';
+      var px = saved && saved[side === 'L' ? 'l' : 'r'];
+      return px > 0 ? px + 'px' : '1fr';
+    }
+    // Recompute the .work grid: floated sides collapse to 0 (gutter too); docked sides use
+    // their saved px width, or 1fr by default.
+    function buildGrid() {
+      var saved = null; try { saved = JSON.parse(localStorage.getItem('adminPaneW') || 'null'); } catch (_) {}
+      var l = trackFor('L', saved), r = trackFor('R', saved);
+      var gl = dock.L ? '6px' : '0px', gr = dock.R ? '6px' : '0px';
+      var center = (l === '1fr' && r === '1fr') ? '0.95fr' : '1fr';
+      document.querySelector('.work').style.gridTemplateColumns = l + ' ' + gl + ' ' + center + ' ' + gr + ' ' + r;
+    }
+    function toggleDock(side) {
+      if (window.innerWidth <= 900) return;     // panes stack on small screens — no floating
+      dock[side] = !dock[side];
+      saveDock();
+      applyDock();
+    }
+    function applyDock() {
+      ['L', 'R'].forEach(function (side) {
+        var pane = paneEl(side), btn = document.getElementById('pin' + side);
+        if (dock[side]) {
+          pane.classList.remove('floating');
+          pane.style.left = pane.style.top = pane.style.width = pane.style.height = '';
+        } else {
+          var g = floatGeo[side] || defaultGeo(side); floatGeo[side] = g;
+          pane.classList.add('floating');
+          pane.style.left = g.l + 'px'; pane.style.top = g.t + 'px';
+          pane.style.width = g.w + 'px'; pane.style.height = g.h + 'px';
+        }
+        if (btn) {
+          btn.classList.toggle('floaton', !dock[side]);
+          btn.title = dock[side] ? 'Pinned — click to float this panel' : 'Floating — click to pin back';
+        }
+      });
+      buildGrid();
+      saveFloat();
+    }
+    // Drag a floating pane by its header (ignores clicks on the header's controls).
+    function setupFloatDrag(side) {
+      var pane = paneEl(side), head = pane.querySelector('.pane-head');
+      head.addEventListener('pointerdown', function (e) {
+        if (dock[side]) return;
+        if (e.target.closest && e.target.closest('button, label, a, input, select, .zoomctl')) return;
+        e.preventDefault();
+        var r = pane.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top;
+        try { head.setPointerCapture(e.pointerId); } catch (_) {}
+        function mv(ev) {
+          pane.style.left = clamp(ev.clientX - ox, 0, window.innerWidth - 60) + 'px';
+          pane.style.top = clamp(ev.clientY - oy, 0, window.innerHeight - 40) + 'px';
+        }
+        function up() {
+          head.removeEventListener('pointermove', mv); head.removeEventListener('pointerup', up);
+          var rr = pane.getBoundingClientRect();
+          floatGeo[side] = { l: Math.round(rr.left), t: Math.round(rr.top), w: Math.round(rr.width), h: Math.round(rr.height) };
+          saveFloat();
+        }
+        head.addEventListener('pointermove', mv); head.addEventListener('pointerup', up);
+      });
+    }
+    // Persist size as a floating pane is resized via its native corner grip.
+    function observeFloatResize() {
+      if (!window.ResizeObserver) return;
+      ['L', 'R'].forEach(function (side) {
+        var pane = paneEl(side);
+        new ResizeObserver(function () {
+          if (dock[side]) return;
+          var r = pane.getBoundingClientRect();
+          floatGeo[side] = { l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) };
+          saveFloatSoon();
+        }).observe(pane);
+      });
+    }
     function setupGutter(id, side) {
       var g = document.getElementById(id);
       g.addEventListener('pointerdown', function (e) {
