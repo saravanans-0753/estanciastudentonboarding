@@ -240,6 +240,18 @@
     .flatedit button:hover { background: var(--pri-d); }
     .assign-row button:hover { background: var(--pri-d); }
 
+    /* bottom action band */
+    .bottomband { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 10px 16px; flex-wrap: wrap;
+                  background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -1px 3px rgba(16,40,52,.06); z-index: 4; }
+    .bottomband button { padding: 9px 16px; border: none; border-radius: 9px; font-weight: 700; cursor: pointer;
+                         font-size: 14px; box-shadow: var(--sh-sm); transition: filter .12s, background .15s; }
+    .bottomband button:hover:not(:disabled) { filter: brightness(1.05); }
+    .bottomband .verify { background: var(--ok); color: #fff; }
+    .bottomband .exp { background: var(--pri); color: #fff; }
+    .bottomband #genPdfBtn { background: linear-gradient(180deg, var(--accent), var(--acc-d)); color: var(--pri-d); }
+    .bottomband button:disabled { background: #cdd3da; color: #fff; cursor: default; box-shadow: none; filter: none; }
+    .bottomband .bb-status { margin-left: auto; color: var(--muted); font-size: 13px; }
+
     /* ---------- dark theme ---------- */
     body.theme-dark {
       --pri:#0a6e93; --pri-d:#0b5d7c; --accent:#49C6DD; --acc-d:#37b6cf;
@@ -249,6 +261,8 @@
     }
     body.theme-dark .topbar { background: var(--surface); }
     body.theme-dark .topbar h1 { color: var(--dark); }
+    body.theme-dark .bottomband { background: var(--surface); }
+    body.theme-dark .bottomband button:disabled { background: #2a3a47; color: #7f93a3; }
     body.theme-dark .pane-head { background: #102a38; color: var(--accent); }
     body.theme-dark .pane-head .hint { color: #7f93a3; }
     body.theme-dark .center .pane-body { background: var(--surface); }
@@ -295,8 +309,6 @@
     <h1>Verify &amp; Compare</h1>
     <input id="flat" inputmode="numeric" placeholder="Flat #">
     <button onclick="loadFlat()">Load</button>
-    <button id="genPdfBtn" onclick="genPdf()" style="display:none">Annexure 2A PDF</button>
-    <button id="csvBtn" onclick="copyCsv()" style="display:none">Copy CSV</button>
     <span class="muted" id="who"></span>
     <span class="spacer"></span>
   </div>
@@ -386,7 +398,6 @@
           <div class="docgroup">Assign Student ID</div>
           <div class="assign-row">
             <input id="assignInput" placeholder="e.g. 1137-A1">
-            <button onclick="assignId()">Save ID &amp; rename files</button>
           </div>
           <div id="assignStatus" class="hint" style="margin-top:8px"></div>
         </div>
@@ -408,6 +419,15 @@
       </div>
       <div class="pane-body" id="docBody"><div class="empty">Pick a student to see their documents.</div></div>
     </div>
+  </div>
+
+  <!-- bottom action band: approve first, then the exports unlock -->
+  <div class="bottomband">
+    <button id="verifyBtn" class="verify" onclick="verifyApprove()" disabled>✔ Verified &amp; Approved</button>
+    <button id="genPdfBtn" class="exp" onclick="genPdf()" disabled>Download Annexure 2A PDF</button>
+    <button id="csvBtn" class="exp" onclick="copyCsv()" disabled>Copy Data</button>
+    <button id="dlPhotosBtn" class="exp" onclick="downloadAllPhotos()" disabled>Download Photos</button>
+    <span class="bb-status" id="bbStatus"></span>
   </div>
 
   <!-- passport crop + color-correction editor -->
@@ -973,6 +993,61 @@
       });
     }
 
+    // ---------- bottom band: verify & approve → unlock exports ----------
+    function bbSet(msg, ok) {
+      var el = document.getElementById('bbStatus'); if (el) el.textContent = msg || '';
+      if (msg) setStatus(msg, ok);
+    }
+    function setExportsEnabled(on) {
+      ['genPdfBtn', 'csvBtn', 'dlPhotosBtn'].forEach(function (id) {
+        var b = document.getElementById(id); if (b) b.disabled = !on;
+      });
+    }
+    // Verify & approve the current student: rename their Drive files to the assigned Student
+    // ID, then unlock the export buttons (Annexure PDF, Copy Data, Download Photos).
+    function verifyApprove() {
+      var s = students[activeTab];
+      if (!s) return bbSet('Pick a student first.', false);
+      var val = document.getElementById('assignInput').value.trim();
+      if (!val) return bbSet('Enter a Student ID first (Assign Student ID).', false);
+      var btn = document.getElementById('verifyBtn'); btn.disabled = true;
+      bbSet('Verifying & renaming files…', true);
+      callServer('assignStudentId', { studentId: s.StudentId, assignedId: val })
+        .then(function (r) {
+          s.AssignedId = r.assignedId;
+          s._docs = null;                    // re-fetch images (renamed)
+          renderDetails(); renderDocs();
+          setExportsEnabled(true);
+          btn.disabled = false;
+          bbSet('Verified & approved — files renamed to "' + r.assignedId + '.*".', true);
+        })
+        .catch(function (e) {
+          btn.disabled = false;
+          bbSet(e && e.message ? e.message : 'Failed to verify.', false);
+        });
+    }
+    // Download every student's saved photo for the flat (named <id>.jpeg).
+    function downloadAllPhotos() {
+      if (!students.length) return bbSet('Load a flat first.', false);
+      bbSet('Preparing photos…', true);
+      var count = 0;
+      var chain = Promise.resolve();
+      students.forEach(function (s) {
+        chain = chain.then(function () {
+          var get = s._docs ? Promise.resolve(s._docs)
+            : callServer('getCompareDocs', { studentId: s.StudentId }).then(function (d) { s._docs = d || {}; return s._docs; });
+          return get.then(function (d) {
+            if (d && d.photo && d.photo.base64) {
+              downloadDataUrl('data:' + (d.photo.mime || 'image/jpeg') + ';base64,' + d.photo.base64, getIdBase(s) + '.jpeg');
+              count++;
+            }
+          });
+        });
+      });
+      chain.then(function () { bbSet(count + ' photo(s) downloaded.', count > 0); })
+           .catch(function () { bbSet('Could not download photos.', false); });
+    }
+
     // ---------- load flat ----------
     function loadFlat() {
       if (!serverReady()) {
@@ -993,8 +1068,9 @@
             fillFlatEdit((res && res.flat) || {});
             document.getElementById('who').textContent = 'Flat ' + flat + ' · ' + students.length + ' student(s)';
             document.getElementById('centerHint').textContent = students.length ? '' : '(none submitted)';
-            document.getElementById('genPdfBtn').style.display = students.length ? '' : 'none';
-            document.getElementById('csvBtn').style.display = students.length ? '' : 'none';
+            document.getElementById('verifyBtn').disabled = !students.length;
+            setExportsEnabled(false);          // re-lock exports until "Verified & Approved"
+            document.getElementById('bbStatus').textContent = '';
             renderTabs();
             if (students.length) switchTab(0);
             else {
